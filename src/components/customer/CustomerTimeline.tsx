@@ -1,13 +1,17 @@
+import type { MouseEvent } from 'react';
 import type { Reservation, UnlockWindow } from '../../lib/types';
 import { minutesToDisplay } from '../../lib/timeUtils';
-import { BUSINESS_DURATION_MINUTES, SET_DURATION } from '../../lib/constants';
-import { formatYen } from '../../lib/pricing';
+import {
+  BUSINESS_DURATION_MINUTES,
+  SET_DURATION,
+  TIME_STEP,
+} from '../../lib/constants';
 
-interface ReservationLedgerProps {
+interface CustomerTimelineProps {
   reservations: Reservation[];
   unlockWindows: UnlockWindow[];
   seatCount: number;
-  onDeleteReservation: (id: string) => Promise<void>;
+  onPickSlot: (slotStart: number) => void;
 }
 
 const PX_PER_MINUTE = 1.5;
@@ -21,12 +25,28 @@ function getHourLabels(): number[] {
 
 const HOUR_LABELS = getHourLabels();
 
-export function ReservationLedger({
+export function CustomerTimeline({
   reservations,
   unlockWindows,
   seatCount,
-  onDeleteReservation,
-}: ReservationLedgerProps) {
+  onPickSlot,
+}: CustomerTimelineProps) {
+  function handleZoneClick(
+    e: MouseEvent<HTMLDivElement>,
+    windowStart: number,
+    windowEnd: number,
+  ) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    let minute = windowStart + y / PX_PER_MINUTE;
+    minute = Math.round(minute / TIME_STEP) * TIME_STEP;
+    // 1セットが帯内に収まる範囲へクランプ
+    const maxStart = windowEnd - SET_DURATION;
+    if (minute > maxStart) minute = maxStart;
+    if (minute < windowStart) minute = windowStart;
+    onPickSlot(minute);
+  }
+
   return (
     <div className="ledger">
       <div className="ledger-header">
@@ -52,17 +72,23 @@ export function ReservationLedger({
           );
         })}
 
+        {/* 受付解禁帯(クリックで予約) */}
         {unlockWindows.map((w) => (
           <div
             key={w.id}
-            className="ledger-unlock-bg"
+            className="ledger-unlock-zone"
             style={{
               top: w.start_time * PX_PER_MINUTE,
               height: (w.end_time - w.start_time) * PX_PER_MINUTE,
             }}
-          />
+            onClick={(e) => handleZoneClick(e, w.start_time, w.end_time)}
+            title="タップで予約"
+          >
+            <span className="ledger-zone-hint">＋ タップで予約</span>
+          </div>
         ))}
 
+        {/* 席レーン + 予約済みブロック(名前は非表示) */}
         {Array.from({ length: seatCount }, (_, seatIdx) => {
           const seatNo = seatIdx + 1;
           const seatReservations = reservations.filter(
@@ -71,7 +97,7 @@ export function ReservationLedger({
           return (
             <div
               key={seatNo}
-              className="ledger-lane"
+              className="ledger-lane ledger-lane--readonly"
               style={{
                 left: `${(seatIdx / seatCount) * 100}%`,
                 width: `${100 / seatCount}%`,
@@ -84,25 +110,14 @@ export function ReservationLedger({
                 return (
                   <div
                     key={r.id}
-                    className="ledger-block"
+                    className="ledger-block ledger-block--reserved"
                     style={{ top, height }}
-                    title={`${r.customer_name}\n${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)} (${r.sets}セット)`}
+                    title={`予約済 ${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)}`}
                   >
-                    <div className="ledger-block-name">{r.customer_name}</div>
+                    <div className="ledger-block-name">予約済</div>
                     <div className="ledger-block-time">
                       {minutesToDisplay(r.start_time)}〜{minutesToDisplay(rEnd)}
                     </div>
-                    {r.subtotal > 0 && (
-                      <div className="ledger-block-amount">
-                        {formatYen(r.subtotal)}
-                      </div>
-                    )}
-                    <button
-                      className="ledger-block-delete"
-                      onClick={() => onDeleteReservation(r.id)}
-                    >
-                      ✕
-                    </button>
                   </div>
                 );
               })}
@@ -110,6 +125,11 @@ export function ReservationLedger({
           );
         })}
       </div>
+
+      <p className="ledger-legend">
+        空いている時間帯（受付中の枠）をタップすると予約できます。
+        {unlockWindows.length === 0 && ' ※本日はまだ受付開始前です。'}
+      </p>
     </div>
   );
 }

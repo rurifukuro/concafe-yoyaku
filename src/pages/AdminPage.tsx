@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAuth, AuthProvider } from '../hooks/useAuth';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { ReservationLedger } from '../components/admin/ReservationLedger';
+import { SalesSummary } from '../components/admin/SalesSummary';
+import { MenuManager } from '../components/admin/MenuManager';
 import { UnlockManager } from '../components/admin/UnlockManager';
 import { SeatCountSetting } from '../components/admin/SeatCountSetting';
 import { useReservations } from '../hooks/useReservations';
@@ -64,6 +66,13 @@ function AdminDashboard() {
         seatCount={seatCount}
         onDeleteReservation={handleDeleteReservation}
       />
+
+      <SalesSummary reservations={reservations} />
+
+      <details className="menu-manager-details">
+        <summary>メニュー管理（会計目安に使う品目・価格を編集）</summary>
+        <MenuManager />
+      </details>
     </div>
   );
 }

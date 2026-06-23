@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Calendar } from '../components/customer/Calendar';
-import { TimeSlotList } from '../components/customer/TimeSlotList';
+import { CustomerTimeline } from '../components/customer/CustomerTimeline';
 import { ReservationModal } from '../components/customer/ReservationModal';
 import { useReservations } from '../hooks/useReservations';
 import { useUnlockWindows } from '../hooks/useUnlockWindows';
 import { useSettings } from '../hooks/useSettings';
+import { useMenu } from '../hooks/useMenu';
 import { formatDate } from '../lib/timeUtils';
 
 export function CustomerPage() {
@@ -16,6 +17,7 @@ export function CustomerPage() {
     useReservations(selectedDate);
   const { windows } = useUnlockWindows(selectedDate);
   const { seatCount } = useSettings();
+  const { menuItems } = useMenu();
 
   function handleReserved() {
     setSelectedSlot(null);
@@ -31,11 +33,11 @@ export function CustomerPage() {
       <h2 className="section-title">
         {selectedDate.replace(/-/g, '/')} の予約状況
       </h2>
-      <TimeSlotList
+      <CustomerTimeline
         reservations={reservations}
         unlockWindows={windows}
         seatCount={seatCount}
-        onSelectSlot={setSelectedSlot}
+        onPickSlot={setSelectedSlot}
       />
 
       {selectedSlot !== null && (
@@ -45,6 +47,7 @@ export function CustomerPage() {
           seatCount={seatCount}
           reservations={reservations}
           unlockWindows={windows}
+          menuItems={menuItems}
           onClose={() => setSelectedSlot(null)}
           onReserved={handleReserved}
         />

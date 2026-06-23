@@ -16,6 +16,10 @@ dist-ssr
 .env
 .env.local
 .env.production
+.env.admin
+
+# Local scratch scripts (dev-only, not part of the app)
+_*.py
 
 # Editor directories and files
 .vscode/*
