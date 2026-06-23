@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { UnlockWindow } from '../lib/types';
-import { getDaysInMonth } from '../lib/timeUtils';
+import { getDaysInMonth, formatDate } from '../lib/timeUtils';
 
 export function useUnlockWindows(date: string) {
   const [windows, setWindows] = useState<UnlockWindow[]>([]);
@@ -35,6 +35,32 @@ export function useUnlockWindows(date: string) {
   }
 
   return { windows, loading, refresh: load, addWindow, removeWindow };
+}
+
+/**
+ * 今日以降で最短の「予約可能日（受付解禁帯のある日）」を返す。
+ * 顧客ページの初期表示日を、行き止まり（解禁帯なし）にしないために使う。
+ */
+export function useNextOpenDate() {
+  const [nextDate, setNextDate] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const today = formatDate(new Date());
+    supabase
+      .from('unlock_windows')
+      .select('date')
+      .gte('date', today)
+      .order('date', { ascending: true })
+      .limit(1)
+      .then(({ data }) => {
+        const row = data?.[0] as { date: string } | undefined;
+        setNextDate(row?.date ?? null);
+        setLoading(false);
+      });
+  }, []);
+
+  return { nextDate, loading };
 }
 
 export function useUnlockedDates(year: number, month: number) {

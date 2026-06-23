@@ -95,7 +95,7 @@ export function Calendar({ selectedDate, onSelectDate }: CalendarProps) {
               }}
             >
               <span className="calendar-day">{day}</span>
-              {isUnlocked && <span className="calendar-dot">●</span>}
+              {isUnlocked && !isPast && <span className="calendar-dot">●</span>}
             </div>
           );
         })}
