@@ -9,12 +9,12 @@ import type {
   UnlockWindow,
 } from '../../lib/types';
 import {
-  getStartTimeOptions,
-  getMaxSets,
+  getStartTimeOptionsInWindow,
+  getMaxSetsInWindow,
   minutesToDisplay,
   countAvailableSeats,
 } from '../../lib/timeUtils';
-import { SET_DURATION } from '../../lib/constants';
+import { SET_DURATION, BUSINESS_DURATION_MINUTES } from '../../lib/constants';
 import {
   computeBilling,
   countQualifyingOrders,
@@ -38,13 +38,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_time_range: '無効な時間指定です。',
 };
 
-/** 追加オーダーのカテゴリ表示順とラベル */
-const ORDER_CATEGORIES: { key: MenuCategory; label: string }[] = [
-  { key: 'cast', label: 'キャストメニュー' },
-  { key: 'food', label: 'フード' },
-  { key: 'shot', label: 'ショット' },
-  { key: 'champagne', label: 'シャンパン' },
-  { key: 'option', label: 'オプション' },
+/** 追加オーダーのカテゴリ表示順・ラベル・色クラス（♥付き） */
+const ORDER_CATEGORIES: { key: MenuCategory; label: string; cls: string }[] = [
+  { key: 'cast', label: 'キャストメニュー', cls: 'cat-cast' },
+  { key: 'food', label: 'フード', cls: 'cat-food' },
+  { key: 'shot', label: 'ショット', cls: 'cat-shot' },
+  { key: 'champagne', label: 'シャンパン', cls: 'cat-champagne' },
+  { key: 'option', label: 'オプション', cls: 'cat-option' },
 ];
 
 export function ReservationModal({
@@ -52,16 +52,51 @@ export function ReservationModal({
   slotStart,
   seatCount,
   reservations,
-  unlockWindows: _unlockWindows,
+  unlockWindows,
   menuItems,
   onClose,
   onReserved,
 }: ReservationModalProps) {
-  const startOptions = getStartTimeOptions(slotStart);
-  const [startTime, setStartTime] = useState(startOptions[0] ?? slotStart);
-  const maxSets = getMaxSets(startTime);
+  // タップ位置を含む受付解禁帯（1セットが収まる帯を優先）
+  const activeWindow = useMemo(() => {
+    const fit = unlockWindows.find(
+      (w) => w.start_time <= slotStart && slotStart + SET_DURATION <= w.end_time,
+    );
+    if (fit) return fit;
+    const contains = unlockWindows.find(
+      (w) => w.start_time <= slotStart && slotStart < w.end_time,
+    );
+    return contains ?? unlockWindows[0] ?? null;
+  }, [unlockWindows, slotStart]);
+
+  const winStart = activeWindow?.start_time ?? slotStart;
+  const winEnd =
+    activeWindow?.end_time ??
+    Math.min(slotStart + SET_DURATION, BUSINESS_DURATION_MINUTES);
+
+  // 帯全体から開始時刻を列挙＝タップ位置より前の時間も選べる（#3）
+  const startOptions = useMemo(() => {
+    const opts = getStartTimeOptionsInWindow(winStart, winEnd);
+    return opts.length > 0 ? opts : [slotStart];
+  }, [winStart, winEnd, slotStart]);
+
+  const [startTime, setStartTime] = useState(slotStart);
+  // 帯が確定して slotStart が候補に無い場合は近い時刻へ寄せる
+  useEffect(() => {
+    if (!startOptions.includes(startTime)) {
+      const below = startOptions.filter((t) => t <= slotStart);
+      const fallback = below.length > 0 ? below[below.length - 1] : undefined;
+      setStartTime(fallback ?? startOptions[0] ?? slotStart);
+    }
+    // startOptions 変化時のみクランプ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startOptions]);
+
+  const maxSets = Math.max(1, getMaxSetsInWindow(startTime, winEnd));
   const [sets, setSets] = useState(1);
   const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [menuUndecided, setMenuUndecided] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,20 +128,24 @@ export function ReservationModal({
 
   const orderLines: OrderLineSnapshot[] = useMemo(
     () =>
-      menuItems
-        .filter((m) => m.category !== 'seat' && (orderQty[m.id] ?? 0) > 0)
-        .map((m) => ({
-          name: m.name,
-          price: m.price,
-          qty: orderQty[m.id] ?? 0,
-          counts_as_order: m.counts_as_order,
-        })),
-    [menuItems, orderQty],
+      menuUndecided
+        ? []
+        : menuItems
+            .filter((m) => m.category !== 'seat' && (orderQty[m.id] ?? 0) > 0)
+            .map((m) => ({
+              name: m.name,
+              price: m.price,
+              qty: orderQty[m.id] ?? 0,
+              counts_as_order: m.counts_as_order,
+            })),
+    [menuItems, orderQty, menuUndecided],
   );
 
   const billing = computeBilling(seatUnitPrice, effectiveSets, orderLines);
   const qualifying = countQualifyingOrders(orderLines);
-  const shortfall = effectiveSets - qualifying;
+  const shortfall = menuUndecided ? 0 : effectiveSets - qualifying;
+
+  const pinValid = pin === '' || /^[0-9]{4}$/.test(pin);
 
   function setQty(id: string, q: number) {
     setOrderQty((prev) => ({ ...prev, [id]: Math.max(0, q) }));
@@ -117,12 +156,18 @@ export function ReservationModal({
       setError('お名前を入力してください');
       return;
     }
+    if (!pinValid) {
+      setError('暗証番号は4桁の数字で入力してください');
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
-    const ordersPayload = Object.entries(orderQty)
-      .filter(([, q]) => q > 0)
-      .map(([item_id, qty]) => ({ item_id, qty }));
+    const ordersPayload = menuUndecided
+      ? []
+      : Object.entries(orderQty)
+          .filter(([, q]) => q > 0)
+          .map(([item_id, qty]) => ({ item_id, qty }));
 
     const { data, error: rpcError } = await supabase.rpc('make_reservation', {
       p_date: date,
@@ -131,6 +176,8 @@ export function ReservationModal({
       p_customer_name: name.trim(),
       p_seat_type_id: seatTypeId || null,
       p_orders: ordersPayload,
+      p_menu_undecided: menuUndecided,
+      p_edit_pin: pin === '' ? null : pin,
     });
 
     if (rpcError) {
@@ -218,54 +265,97 @@ export function ReservationModal({
           />
         </label>
 
+        <label>
+          暗証番号（4桁・任意）
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={pin}
+            onChange={(e) =>
+              setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))
+            }
+            placeholder="例）1234"
+          />
+          <span className="field-note">
+            ※あとで予約のキャンセル・メニュー変更をする際に使います。
+          </span>
+        </label>
+
+        {/* 当日にメニューを決める（#4）— メニュー欄の上 */}
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={menuUndecided}
+            onChange={(e) => setMenuUndecided(e.target.checked)}
+          />
+          <span>当日にメニューを決める（事前注文なしで予約）</span>
+        </label>
+
         {/* 追加オーダー */}
         <div className="order-section">
           <div className="order-section-title">追加オーダー（任意）</div>
-          {ORDER_CATEGORIES.map(({ key, label }) => {
-            const items = menuItems.filter(
-              (m) => m.category === key && m.active,
-            );
-            if (items.length === 0) return null;
-            return (
-              <div key={key} className="order-category">
-                <div className="order-category-label">{label}</div>
-                {items.map((m) => {
-                  const q = orderQty[m.id] ?? 0;
-                  return (
-                    <div key={m.id} className="order-item">
-                      <span className="order-item-name">
-                        {m.name}
-                        {m.counts_as_order && (
-                          <span className="order-badge">1オーダー</span>
-                        )}
-                      </span>
-                      <span className="order-item-price">
-                        {formatYen(m.price)}
-                      </span>
-                      <span className="qty-stepper">
-                        <button
-                          type="button"
-                          onClick={() => setQty(m.id, q - 1)}
-                          disabled={q <= 0}
-                          aria-label="減らす"
-                        >
-                          −
-                        </button>
-                        <span className="qty-value">{q}</span>
-                        <button
-                          type="button"
-                          onClick={() => setQty(m.id, q + 1)}
-                          aria-label="増やす"
-                        >
-                          ＋
-                        </button>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+          <p className="order-section-note">
+            事前に決まっている場合はこちらで選択してください。当日の追加注文もOK
+            です。選択しなくても予約できます。
+          </p>
+          {menuUndecided ? (
+            <p className="order-undecided-note">
+              当日お店でメニューを一緒に決めます（事前注文はスキップされます）。
+            </p>
+          ) : (
+            ORDER_CATEGORIES.map(({ key, label, cls }) => {
+              const items = menuItems.filter(
+                (m) => m.category === key && m.active,
+              );
+              if (items.length === 0) return null;
+              return (
+                <div key={key} className={`order-category ${cls}`}>
+                  <div className="order-category-label">
+                    <span className="cat-heart">♥</span> {label}
+                  </div>
+                  {items.map((m) => {
+                    const q = orderQty[m.id] ?? 0;
+                    return (
+                      <div key={m.id} className="order-item">
+                        <span className="order-item-name">
+                          {m.name}
+                          {m.is_original && (
+                            <span className="original-badge">オリシャン</span>
+                          )}
+                          {m.counts_as_order && (
+                            <span className="order-badge">1オーダー</span>
+                          )}
+                        </span>
+                        <span className="order-item-price">
+                          {formatYen(m.price)}
+                        </span>
+                        <span className="qty-stepper">
+                          <button
+                            type="button"
+                            onClick={() => setQty(m.id, q - 1)}
+                            disabled={q <= 0}
+                            aria-label="減らす"
+                          >
+                            −
+                          </button>
+                          <span className="qty-value">{q}</span>
+                          <button
+                            type="button"
+                            onClick={() => setQty(m.id, q + 1)}
+                            aria-label="増やす"
+                          >
+                            ＋
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* 会計目安 */}
@@ -295,6 +385,7 @@ export function ReservationModal({
           </div>
           <p className="billing-note">
             ※サービス料は消費税とは別途。金額は目安です。
+            {menuUndecided && '当日メニューを決めると金額が変わります。'}
           </p>
         </div>
 
@@ -319,7 +410,7 @@ export function ReservationModal({
           <button
             className="btn-confirm"
             onClick={handleSubmit}
-            disabled={submitting || !name.trim() || available <= 0}
+            disabled={submitting || !name.trim() || !pinValid || available <= 0}
           >
             {submitting ? '予約中…' : '予約する'}
           </button>

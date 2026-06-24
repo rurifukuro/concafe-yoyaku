@@ -4,7 +4,8 @@ import {
   getDaysInMonth,
   getFirstDayOfWeek,
 } from '../../lib/timeUtils';
-import { useUnlockedDates } from '../../hooks/useUnlockWindows';
+import { useMonthAvailability } from '../../hooks/useUnlockWindows';
+import type { DayStatus } from '../../lib/types';
 
 interface CalendarProps {
   selectedDate: string;
@@ -13,12 +14,22 @@ interface CalendarProps {
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
+/** 空き状況ごとの追加クラスと記号 */
+const STATUS_META: Record<DayStatus, { cls: string; mark: string }> = {
+  available: { cls: 'avail', mark: '〇' },
+  low: { cls: 'low', mark: '▲' },
+  full: { cls: 'full', mark: '×' },
+};
+
 export function Calendar({ selectedDate, onSelectDate }: CalendarProps) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
-  const { unlockedDates } = useUnlockedDates(viewYear, viewMonth);
+  const { unlockedDates, statusByDate } = useMonthAvailability(
+    viewYear,
+    viewMonth,
+  );
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfWeek(viewYear, viewMonth);
@@ -76,12 +87,18 @@ export function Calendar({ selectedDate, onSelectDate }: CalendarProps) {
           const isUnlocked = unlockedDates.has(dateStr);
           const isSelected = dateStr === selectedDate;
           const isPast = new Date(viewYear, viewMonth, day) < todayStart;
+          const status = statusByDate.get(dateStr);
+          const meta =
+            isUnlocked && !isPast && status ? STATUS_META[status] : null;
+          // 満席（full）は受付帯があっても予約できないのでタップ不可
+          const isClickable = !isPast && isUnlocked && status !== 'full';
 
           const cls = [
             'calendar-cell',
             isSelected && 'selected',
             isPast && 'past',
             !isUnlocked && !isPast && 'no-unlock',
+            meta && `status-${meta.cls}`,
           ]
             .filter(Boolean)
             .join(' ');
@@ -91,14 +108,27 @@ export function Calendar({ selectedDate, onSelectDate }: CalendarProps) {
               key={dateStr}
               className={cls}
               onClick={() => {
-                if (!isPast && isUnlocked) onSelectDate(dateStr);
+                if (isClickable) onSelectDate(dateStr);
               }}
             >
               <span className="calendar-day">{day}</span>
-              {isUnlocked && !isPast && <span className="calendar-dot">●</span>}
+              {meta && meta.mark && (
+                <span className="calendar-mark">{meta.mark}</span>
+              )}
             </div>
           );
         })}
+      </div>
+      <div className="calendar-legend">
+        <span className="legend-item">
+          <span className="legend-swatch status-avail" />空きあり 〇
+        </span>
+        <span className="legend-item">
+          <span className="legend-swatch status-low" />空き少 ▲
+        </span>
+        <span className="legend-item">
+          <span className="legend-swatch status-full" />満席 ×
+        </span>
       </div>
     </div>
   );

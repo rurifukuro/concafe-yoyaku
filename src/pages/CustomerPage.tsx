@@ -48,6 +48,13 @@ export function CustomerPage() {
   const noWindowToday = windows.length === 0;
   const hasOtherOpenDate = nextDate !== null && nextDate !== selectedDate;
 
+  // この日の席数は解禁帯毎の設定を優先（未設定の帯は既定値）。
+  // 複数帯あるときは多い方を表示上限に使う。
+  const effectiveSeatCount =
+    windows.length > 0
+      ? Math.max(...windows.map((w) => w.seat_count ?? seatCount))
+      : seatCount;
+
   return (
     <div className="customer-page">
       <h1 className="app-title">予約</h1>
@@ -74,7 +81,7 @@ export function CustomerPage() {
           ) : (
             <span>
               現在、予約を受け付けている日程がありません。店舗が受付を開始すると、
-              カレンダーに●が付いて予約できるようになります。
+              カレンダーの日付が青く表示され予約できるようになります。
             </span>
           )}
         </div>
@@ -83,7 +90,7 @@ export function CustomerPage() {
       <CustomerTimeline
         reservations={reservations}
         unlockWindows={windows}
-        seatCount={seatCount}
+        seatCount={effectiveSeatCount}
         onPickSlot={setSelectedSlot}
       />
 
@@ -91,7 +98,7 @@ export function CustomerPage() {
         <ReservationModal
           date={selectedDate}
           slotStart={selectedSlot}
-          seatCount={seatCount}
+          seatCount={effectiveSeatCount}
           reservations={reservations}
           unlockWindows={windows}
           menuItems={menuItems}

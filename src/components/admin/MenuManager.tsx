@@ -22,13 +22,15 @@ function MenuRow({ item, onSave, onDelete }: MenuRowProps) {
   const [price, setPrice] = useState(item.price);
   const [counts, setCounts] = useState(item.counts_as_order);
   const [active, setActive] = useState(item.active);
+  const [isOriginal, setIsOriginal] = useState(item.is_original);
   const [saving, setSaving] = useState(false);
 
   const dirty =
     name !== item.name ||
     price !== item.price ||
     counts !== item.counts_as_order ||
-    active !== item.active;
+    active !== item.active ||
+    isOriginal !== item.is_original;
 
   async function save() {
     setSaving(true);
@@ -37,6 +39,7 @@ function MenuRow({ item, onSave, onDelete }: MenuRowProps) {
       price,
       counts_as_order: counts,
       active,
+      is_original: isOriginal,
     });
     setSaving(false);
   }
@@ -78,6 +81,19 @@ function MenuRow({ item, onSave, onDelete }: MenuRowProps) {
         />
         有効
       </label>
+      {item.category === 'champagne' && (
+        <label
+          className="menu-row-check"
+          title="オリジナルシャンパン（オリシャン）として表示する"
+        >
+          <input
+            type="checkbox"
+            checked={isOriginal}
+            onChange={(e) => setIsOriginal(e.target.checked)}
+          />
+          オリシャン
+        </label>
+      )}
       <button
         className="menu-row-save"
         onClick={() => void save()}
@@ -102,6 +118,7 @@ function AddMenuItemForm({ category, nextOrder, onAdd }: AddFormProps) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState(0);
   const [counts, setCounts] = useState(category !== 'seat');
+  const [isOriginal, setIsOriginal] = useState(false);
   const [adding, setAdding] = useState(false);
 
   async function add() {
@@ -115,11 +132,13 @@ function AddMenuItemForm({ category, nextOrder, onAdd }: AddFormProps) {
       note: null,
       display_order: nextOrder,
       active: true,
+      is_original: category === 'champagne' ? isOriginal : false,
     });
     setAdding(false);
     if (!err) {
       setName('');
       setPrice(0);
+      setIsOriginal(false);
     }
   }
 
@@ -148,6 +167,16 @@ function AddMenuItemForm({ category, nextOrder, onAdd }: AddFormProps) {
             onChange={(e) => setCounts(e.target.checked)}
           />
           1オーダー
+        </label>
+      )}
+      {category === 'champagne' && (
+        <label className="menu-row-check">
+          <input
+            type="checkbox"
+            checked={isOriginal}
+            onChange={(e) => setIsOriginal(e.target.checked)}
+          />
+          オリシャン
         </label>
       )}
       <button

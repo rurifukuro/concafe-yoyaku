@@ -8,6 +8,7 @@ interface SalesSummaryProps {
 }
 
 function orderSummary(r: Reservation): string {
+  if (r.menu_undecided) return 'メニュー未定（当日決定）';
   if (!r.order_items || r.order_items.length === 0) return '—';
   return r.order_items.map((o) => `${o.name}×${o.qty}`).join('、');
 }
@@ -77,7 +78,13 @@ export function SalesSummary({ reservations }: SalesSummaryProps) {
                   <td>{r.customer_name}</td>
                   <td>席{r.seat_no}</td>
                   <td>{r.seat_type_name ?? '—'}</td>
-                  <td className="sales-orders">{orderSummary(r)}</td>
+                  <td className="sales-orders">
+                    {r.menu_undecided ? (
+                      <span className="undecided-tag">メニュー未定（当日決定）</span>
+                    ) : (
+                      orderSummary(r)
+                    )}
+                  </td>
                   <td className="sales-num">{formatYen(r.subtotal)}</td>
                   <td className="sales-num">
                     {formatYen(r.subtotal + svc.cash)}

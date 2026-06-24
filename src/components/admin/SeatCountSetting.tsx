@@ -18,7 +18,10 @@ export function SeatCountSetting({ current, onUpdate }: SeatCountSettingProps) {
 
   return (
     <div className="seat-settings">
-      <h3>席数設定</h3>
+      <h3>既定の席数</h3>
+      <p className="seat-settings-note">
+        解禁日ごとに席数を指定しない場合に使う既定値です。
+      </p>
       <div className="seat-settings-form">
         <input
           type="number"

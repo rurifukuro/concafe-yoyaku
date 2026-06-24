@@ -13,6 +13,10 @@
   --color-danger: #ef4444;
   --color-accent: #ec4899;
   --color-unlock-bg: rgba(99, 102, 241, 0.08);
+  /* カレンダー空き状況の塗り分け */
+  --color-cal-avail: #2563eb; /* 予約可能=青 */
+  --color-cal-low: #ffe08a; /* 空き少=黄 */
+  --color-cal-full: #ef4444; /* 満席=赤 */
   --radius: 8px;
   --radius-sm: 4px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -160,48 +164,86 @@ select {
 }
 
 .calendar-cell {
-  aspect-ratio: 1;
+  /* コンパクト化: 正方形をやめ高さを抑える */
+  min-height: 2.25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 700; /* 日付は太め・濃色で視認性UP */
+  color: var(--color-text);
   position: relative;
-  transition: background 0.15s;
+  transition:
+    background 0.15s,
+    filter 0.1s;
 }
 
-.calendar-cell:hover:not(.past):not(.no-unlock) {
-  background: var(--color-primary);
-  color: white;
+.calendar-day {
+  line-height: 1.05;
 }
 
+.calendar-cell:hover:not(.past):not(.no-unlock):not(.status-full) {
+  filter: brightness(0.94);
+}
+
+/* ===== 空き状況の塗り分け ===== */
+.calendar-cell.status-avail {
+  background: var(--color-cal-avail);
+  color: #ffffff;
+}
+
+.calendar-cell.status-low {
+  background: var(--color-cal-low);
+  color: #7a4d00;
+}
+
+.calendar-cell.status-full {
+  background: var(--color-cal-full);
+  color: #ffffff;
+  cursor: default;
+}
+
+.calendar-mark {
+  font-size: 0.6rem;
+  line-height: 1;
+  font-weight: 800;
+  margin-top: 1px;
+}
+
+.calendar-cell.status-low .calendar-mark {
+  color: #b35c00;
+}
+
+.calendar-cell.status-full .calendar-mark {
+  color: #ffffff;
+}
+
+/* 選択中は枠で強調（塗りの上でも分かるように） */
 .calendar-cell.selected {
-  background: var(--color-primary);
-  color: white;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 2px #ffffff;
+}
+
+.calendar-cell.selected .calendar-mark {
+  color: #ffffff;
 }
 
 .calendar-cell.past {
   color: var(--color-text-muted);
   opacity: 0.4;
   cursor: default;
+  font-weight: 400;
 }
 
 .calendar-cell.no-unlock {
   color: var(--color-text-muted);
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: default;
-}
-
-.calendar-dot {
-  font-size: 0.5rem;
-  color: var(--color-accent);
-  line-height: 1;
-}
-
-.calendar-cell.selected .calendar-dot {
-  color: white;
+  font-weight: 400;
 }
 
 /* ===== Time Slot List ===== */
@@ -733,10 +775,35 @@ select {
 }
 
 .order-category-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
   color: var(--color-primary-dark);
   margin: 0.5rem 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cat-heart {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* カテゴリ別の明るい色分け（♥も同色） */
+.order-category.cat-cast .order-category-label {
+  color: #ec4899;
+}
+.order-category.cat-food .order-category-label {
+  color: #f97316;
+}
+.order-category.cat-shot .order-category-label {
+  color: #8b5cf6;
+}
+.order-category.cat-champagne .order-category-label {
+  color: #eab308;
+}
+.order-category.cat-option .order-category-label {
+  color: #10b981;
 }
 
 .order-item {
@@ -798,6 +865,128 @@ select {
   min-width: 20px;
   text-align: center;
   font-size: 0.85rem;
+}
+
+/* オリシャン印 */
+.original-badge {
+  font-size: 0.6rem;
+  background: linear-gradient(135deg, #f59e0b, #eab308);
+  color: #fff;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(234, 179, 8, 0.5);
+}
+
+/* 当日メニュー決めるチェック行 */
+.checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0.5rem;
+  cursor: pointer;
+}
+.checkbox-row input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.order-section-note {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.order-undecided-note {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+}
+
+/* カレンダー凡例 */
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.legend-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 3px;
+  display: inline-block;
+}
+.legend-swatch.status-avail {
+  background: var(--color-cal-avail);
+}
+.legend-swatch.status-low {
+  background: var(--color-cal-low);
+}
+.legend-swatch.status-full {
+  background: var(--color-cal-full);
+}
+
+/* 解禁帯の席数入力 */
+.unlock-seat-input,
+.unlock-list-seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+.unlock-seat-input input,
+.unlock-list-seat input {
+  width: 3rem;
+}
+.unlock-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.unlock-list-time {
+  flex: 1;
+}
+
+.seat-settings-note {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+/* メニュー未定タグ */
+.undecided-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #b35c00;
+  background: #fff3cd;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+.ledger-undecided {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: #fff3cd;
+  color: #b35c00;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  margin-left: 0.25rem;
 }
 
 .billing-card {
@@ -1012,6 +1201,54 @@ select {
   font-size: 0.72rem;
   color: var(--color-text-secondary);
   max-width: 180px;
+}
+
+/* ===== 時間帯別 接客時間配分 ===== */
+
+.time-alloc {
+  margin-top: 1.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.time-alloc h3 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.time-alloc-note {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.6rem;
+  line-height: 1.4;
+}
+
+.time-alloc-table .sales-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.alloc-pct {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.alloc-equal {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.alloc-equal-tag {
+  display: inline-block;
+  margin-left: 0.2rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  vertical-align: middle;
 }
 
 /* ===== Menu Manager ===== */

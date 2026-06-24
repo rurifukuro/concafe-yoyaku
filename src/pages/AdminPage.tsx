@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth, AuthProvider } from '../hooks/useAuth';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { ReservationLedger } from '../components/admin/ReservationLedger';
 import { SalesSummary } from '../components/admin/SalesSummary';
+import { TimeAllocationSummary } from '../components/admin/TimeAllocationSummary';
 import { MenuManager } from '../components/admin/MenuManager';
 import { UnlockManager } from '../components/admin/UnlockManager';
 import { SeatCountSetting } from '../components/admin/SeatCountSetting';
 import { useReservations } from '../hooks/useReservations';
-import { useUnlockWindows } from '../hooks/useUnlockWindows';
+import { useUnlockWindows, useNextOpenDate } from '../hooks/useUnlockWindows';
 import { useSettings } from '../hooks/useSettings';
 import { formatDate } from '../lib/timeUtils';
 import { supabase } from '../lib/supabase';
@@ -15,16 +16,35 @@ import { supabase } from '../lib/supabase';
 function AdminDashboard() {
   const { user, signOut } = useAuth();
   const [date, setDate] = useState(formatDate(new Date()));
+  // 管理者が日付を選んだら自動誘導で上書きしない
+  const userPicked = useRef(false);
 
   const { reservations, refresh: refreshReservations } = useReservations(date);
-  const { windows, addWindow, removeWindow } = useUnlockWindows(date);
+  const { windows, addWindow, removeWindow, updateWindowSeatCount } =
+    useUnlockWindows(date);
   const { seatCount, updateSeatCount } = useSettings();
+  const { nextDate } = useNextOpenDate();
+
+  // 初期表示は最新の予約解禁日へ寄せる。解禁日が無ければ今日のまま（既存仕様）。
+  useEffect(() => {
+    if (!userPicked.current && nextDate && nextDate !== date) {
+      setDate(nextDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextDate]);
 
   function changeDate(delta: number) {
+    userPicked.current = true;
     const d = new Date(date);
     d.setDate(d.getDate() + delta);
     setDate(formatDate(d));
   }
+
+  // この日の表示用席数（解禁帯毎の設定を優先、複数帯は多い方）
+  const effectiveSeatCount =
+    windows.length > 0
+      ? Math.max(...windows.map((w) => w.seat_count ?? seatCount))
+      : seatCount;
 
   async function handleDeleteReservation(id: string) {
     await supabase.from('reservations').delete().eq('id', id);
@@ -47,7 +67,10 @@ function AdminDashboard() {
           <input
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              userPicked.current = true;
+              setDate(e.target.value);
+            }}
           />
           <button onClick={() => changeDate(1)}>翌日 ▶</button>
         </div>
@@ -55,19 +78,26 @@ function AdminDashboard() {
         <SeatCountSetting current={seatCount} onUpdate={updateSeatCount} />
         <UnlockManager
           windows={windows}
+          defaultSeatCount={seatCount}
           onAdd={addWindow}
           onRemove={removeWindow}
+          onUpdateSeatCount={updateWindowSeatCount}
         />
       </div>
 
       <ReservationLedger
         reservations={reservations}
         unlockWindows={windows}
-        seatCount={seatCount}
+        seatCount={effectiveSeatCount}
         onDeleteReservation={handleDeleteReservation}
       />
 
       <SalesSummary reservations={reservations} />
+
+      <TimeAllocationSummary
+        reservations={reservations}
+        seatCount={effectiveSeatCount}
+      />
 
       <details className="menu-manager-details">
         <summary>メニュー管理（会計目安に使う品目・価格を編集）</summary>

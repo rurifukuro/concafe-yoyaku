@@ -88,7 +88,12 @@ export function ReservationLedger({
                     style={{ top, height }}
                     title={`${r.customer_name}\n${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)} (${r.sets}セット)`}
                   >
-                    <div className="ledger-block-name">{r.customer_name}</div>
+                    <div className="ledger-block-name">
+                      {r.customer_name}
+                      {r.menu_undecided && (
+                        <span className="ledger-undecided">未定</span>
+                      )}
+                    </div>
                     <div className="ledger-block-time">
                       {minutesToDisplay(r.start_time)}〜{minutesToDisplay(rEnd)}
                     </div>
