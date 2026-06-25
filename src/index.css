@@ -344,21 +344,23 @@ select {
 .modal-content {
   background: var(--color-surface);
   border-radius: var(--radius);
-  padding: 1.5rem;
+  padding: 1.25rem;
   width: 100%;
   max-width: 400px;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
 }
 
 .modal-content h3 {
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
   color: var(--color-primary-dark);
 }
 
 .modal-content label {
   display: block;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -744,8 +746,6 @@ select {
 
 .modal-content--wide {
   max-width: 480px;
-  max-height: 75vh;
-  overflow-y: auto;
 }
 
 .field-note {
@@ -809,47 +809,51 @@ select {
 .order-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.2rem 0;
+  gap: 0.25rem;
+  padding: 0.15rem 0;
 }
 
 .order-item-name {
-  flex: 1;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.order-badge {
-  font-size: 0.6rem;
-  background: var(--color-accent);
-  color: white;
-  padding: 0.05rem 0.3rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.order-item-price {
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  min-width: 64px;
-  text-align: right;
-}
-
-.qty-stepper {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
+.order-badge {
+  font-size: 0.55rem;
+  background: var(--color-accent);
+  color: white;
+  padding: 0.05rem 0.25rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.order-item-price {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
 .qty-stepper button {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-sm);
   background: var(--color-border);
   color: var(--color-text);
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1;
   display: flex;
   align-items: center;
