@@ -347,7 +347,7 @@ select {
   padding: 1.25rem;
   width: 100%;
   max-width: 400px;
-  max-height: calc(100vh - 4rem);
+  max-height: calc(100vh - 10rem);
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
 }
