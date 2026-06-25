@@ -59,18 +59,36 @@ select {
   min-height: 100dvh;
 }
 
-.customer-page::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.85);
-  z-index: 0;
-  pointer-events: none;
+.customer-page .app-title {
+  background: rgba(255, 255, 255, 0.75);
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
 }
 
-.customer-page > * {
-  position: relative;
-  z-index: 1;
+.customer-page .section-title {
+  background: rgba(255, 255, 255, 0.75);
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.customer-page .calendar {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.customer-page .ledger {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.customer-page .notice-banner {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.customer-page .ledger-legend {
+  background: rgba(255, 255, 255, 0.75);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
 }
 
 /* ===== App Layout ===== */
