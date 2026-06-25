@@ -12,6 +12,8 @@ interface CustomerTimelineProps {
   unlockWindows: UnlockWindow[];
   seatCount: number;
   onPickSlot: (slotStart: number) => void;
+  /** 予約済みブロックのタップ（変更・キャンセル導線） */
+  onPickReservation: (reservation: Reservation) => void;
 }
 
 const PX_PER_MINUTE = 1.5;
@@ -30,6 +32,7 @@ export function CustomerTimeline({
   unlockWindows,
   seatCount,
   onPickSlot,
+  onPickReservation,
 }: CustomerTimelineProps) {
   function handleZoneClick(
     e: MouseEvent<HTMLDivElement>,
@@ -110,14 +113,24 @@ export function CustomerTimeline({
                 return (
                   <div
                     key={r.id}
-                    className="ledger-block ledger-block--reserved"
+                    className="ledger-block ledger-block--reserved ledger-block--clickable"
                     style={{ top, height }}
-                    title={`予約済 ${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)}`}
+                    title={`予約 ${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)}（タップで変更・キャンセル）`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onPickReservation(r)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onPickReservation(r);
+                      }
+                    }}
                   >
                     <div className="ledger-block-name">予約済</div>
                     <div className="ledger-block-time">
                       {minutesToDisplay(r.start_time)}〜{minutesToDisplay(rEnd)}
                     </div>
+                    <div className="ledger-block-edit-hint">変更</div>
                   </div>
                 );
               })}

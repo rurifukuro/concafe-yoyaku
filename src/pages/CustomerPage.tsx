@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Calendar } from '../components/customer/Calendar';
 import { CustomerTimeline } from '../components/customer/CustomerTimeline';
 import { ReservationModal } from '../components/customer/ReservationModal';
+import { ReservationEditModal } from '../components/customer/ReservationEditModal';
 import { useReservations } from '../hooks/useReservations';
 import {
   useUnlockWindows,
@@ -10,11 +11,13 @@ import {
 import { useSettings } from '../hooks/useSettings';
 import { useMenu } from '../hooks/useMenu';
 import { formatDate } from '../lib/timeUtils';
+import type { Reservation } from '../lib/types';
 
 export function CustomerPage() {
   const today = formatDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [editTarget, setEditTarget] = useState<Reservation | null>(null);
   // ユーザーが自分で日付を選んだら、自動誘導で上書きしない
   const userPicked = useRef(false);
 
@@ -42,6 +45,11 @@ export function CustomerPage() {
 
   function handleReserved() {
     setSelectedSlot(null);
+    void refreshReservations();
+  }
+
+  function handleEdited() {
+    setEditTarget(null);
     void refreshReservations();
   }
 
@@ -92,6 +100,7 @@ export function CustomerPage() {
         unlockWindows={windows}
         seatCount={effectiveSeatCount}
         onPickSlot={setSelectedSlot}
+        onPickReservation={setEditTarget}
       />
 
       {selectedSlot !== null && (
@@ -104,6 +113,18 @@ export function CustomerPage() {
           menuItems={menuItems}
           onClose={() => setSelectedSlot(null)}
           onReserved={handleReserved}
+        />
+      )}
+
+      {editTarget !== null && (
+        <ReservationEditModal
+          reservation={editTarget}
+          seatCount={effectiveSeatCount}
+          reservations={reservations}
+          unlockWindows={windows}
+          menuItems={menuItems}
+          onClose={() => setEditTarget(null)}
+          onUpdated={handleEdited}
         />
       )}
     </div>

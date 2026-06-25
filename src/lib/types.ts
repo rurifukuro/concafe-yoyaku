@@ -79,3 +79,24 @@ export interface MakeReservationResult {
   subtotal?: number;
   error?: 'no_available_seat' | 'not_unlocked' | 'invalid_time_range';
 }
+
+/** verify_reservation_pin の戻り値（PIN 照合ゲート） */
+export interface VerifyPinResult {
+  ok: boolean;
+  /** ok=false の理由。no_pin=この予約にPIN未設定 / mismatch=PIN不一致 */
+  reason?: 'no_pin' | 'mismatch';
+}
+
+/** update_reservation / cancel_reservation の戻り値 */
+export interface EditReservationResult {
+  id?: string;
+  seat_no?: number;
+  subtotal?: number;
+  ok?: boolean;
+  error?:
+    | 'pin_mismatch'
+    | 'not_found'
+    | 'no_available_seat'
+    | 'not_unlocked'
+    | 'invalid_time_range';
+}

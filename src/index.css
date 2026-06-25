@@ -1371,6 +1371,70 @@ select {
   margin-top: 0.5rem;
 }
 
+/* ===== 予約変更モーダル（顧客） ===== */
+
+.edit-pin-lead {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.modal-actions--edit {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-actions-right {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 予約済みブロックをタップして変更（lane は readonly だがブロックだけ有効化） */
+.ledger-block--clickable {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+
+.ledger-block--clickable:hover {
+  filter: brightness(1.12);
+}
+
+.ledger-block-edit-hint {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.55rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  pointer-events: none;
+}
+
+/* 管理ログインの注記 */
+.admin-login-note {
+  margin-top: 1rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
 /* ===== Responsive ===== */
 
 @media (max-width: 600px) {

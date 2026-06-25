@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type {
-  MakeReservationResult,
+  EditReservationResult,
   MenuCategory,
   MenuItem,
   OrderLineSnapshot,
   Reservation,
   UnlockWindow,
+  VerifyPinResult,
 } from '../../lib/types';
 import {
   getStartTimeOptionsInWindow,
@@ -21,20 +22,21 @@ import {
   formatYen,
 } from '../../lib/pricing';
 
-interface ReservationModalProps {
-  date: string;
-  slotStart: number;
+interface ReservationEditModalProps {
+  reservation: Reservation;
   seatCount: number;
   reservations: Reservation[];
   unlockWindows: UnlockWindow[];
   menuItems: MenuItem[];
   onClose: () => void;
-  onReserved: () => void;
+  onUpdated: () => void;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
+const EDIT_ERROR_MESSAGES: Record<string, string> = {
+  pin_mismatch: '暗証番号が一致しません。',
+  not_found: '予約が見つかりませんでした。',
   no_available_seat: '申し訳ありません。この時間帯は満席です。',
-  not_unlocked: 'この時間帯はまだ受付開始前です。',
+  not_unlocked: 'この時間帯はまだ受付対象外です。',
   invalid_time_range: '無効な時間指定です。',
 };
 
@@ -47,56 +49,57 @@ const ORDER_CATEGORIES: { key: MenuCategory; label: string; cls: string }[] = [
   { key: 'option', label: 'オプション', cls: 'cat-option' },
 ];
 
-export function ReservationModal({
-  date,
-  slotStart,
+type Phase = 'pin' | 'edit' | 'no_pin';
+
+export function ReservationEditModal({
+  reservation,
   seatCount,
   reservations,
   unlockWindows,
   menuItems,
   onClose,
-  onReserved,
-}: ReservationModalProps) {
-  // タップ位置を含む受付解禁帯（1セットが収まる帯を優先）
+  onUpdated,
+}: ReservationEditModalProps) {
+  const [phase, setPhase] = useState<Phase>('pin');
+  const [pinInput, setPinInput] = useState('');
+  const [verifiedPin, setVerifiedPin] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  // 自分自身を除いた同日予約（空席・満席判定で自分を二重計上しない）
+  const others = useMemo(
+    () => reservations.filter((r) => r.id !== reservation.id),
+    [reservations, reservation.id],
+  );
+
+  // タップ位置（予約開始）を含む受付解禁帯
   const activeWindow = useMemo(() => {
+    const start = reservation.start_time;
     const fit = unlockWindows.find(
-      (w) => w.start_time <= slotStart && slotStart + SET_DURATION <= w.end_time,
+      (w) => w.start_time <= start && start + SET_DURATION <= w.end_time,
     );
     if (fit) return fit;
     const contains = unlockWindows.find(
-      (w) => w.start_time <= slotStart && slotStart < w.end_time,
+      (w) => w.start_time <= start && start < w.end_time,
     );
     return contains ?? unlockWindows[0] ?? null;
-  }, [unlockWindows, slotStart]);
+  }, [unlockWindows, reservation.start_time]);
 
-  const winStart = activeWindow?.start_time ?? slotStart;
+  const winStart = activeWindow?.start_time ?? reservation.start_time;
   const winEnd =
     activeWindow?.end_time ??
-    Math.min(slotStart + SET_DURATION, BUSINESS_DURATION_MINUTES);
+    Math.min(reservation.start_time + SET_DURATION, BUSINESS_DURATION_MINUTES);
 
-  // 帯全体から開始時刻を列挙＝タップ位置より前の時間も選べる（#3）
   const startOptions = useMemo(() => {
     const opts = getStartTimeOptionsInWindow(winStart, winEnd);
-    return opts.length > 0 ? opts : [slotStart];
-  }, [winStart, winEnd, slotStart]);
+    return opts.length > 0 ? opts : [reservation.start_time];
+  }, [winStart, winEnd, reservation.start_time]);
 
-  const [startTime, setStartTime] = useState(slotStart);
-  // 帯が確定して slotStart が候補に無い場合は近い時刻へ寄せる
-  useEffect(() => {
-    if (!startOptions.includes(startTime)) {
-      const below = startOptions.filter((t) => t <= slotStart);
-      const fallback = below.length > 0 ? below[below.length - 1] : undefined;
-      setStartTime(fallback ?? startOptions[0] ?? slotStart);
-    }
-    // startOptions 変化時のみクランプ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startOptions]);
-
-  const maxSets = Math.max(1, getMaxSetsInWindow(startTime, winEnd));
-  const [sets, setSets] = useState(1);
-  const [name, setName] = useState('');
-  const [pin, setPin] = useState('');
-  const [menuUndecided, setMenuUndecided] = useState(false);
+  const [startTime, setStartTime] = useState(reservation.start_time);
+  const [sets, setSets] = useState(reservation.sets);
+  const [menuUndecided, setMenuUndecided] = useState(reservation.menu_undecided);
+  const [seatTypeId, setSeatTypeId] = useState('');
+  const [orderQty, setOrderQty] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,24 +107,40 @@ export function ReservationModal({
     () => menuItems.filter((m) => m.category === 'seat' && m.active),
     [menuItems],
   );
-  const [seatTypeId, setSeatTypeId] = useState('');
-  const [orderQty, setOrderQty] = useState<Record<string, number>>({});
 
-  // メニュー読込後、未選択なら先頭の席種を既定に
+  // メニュー到着後、既存の予約内容（席種・注文）を名前一致でプリフィル
+  const prefilled = useRef(false);
   useEffect(() => {
-    if (!seatTypeId && seatItems.length > 0) {
-      setSeatTypeId(seatItems[0]?.id ?? '');
+    if (prefilled.current || menuItems.length === 0) return;
+    const seat = menuItems.find(
+      (m) => m.category === 'seat' && m.name === reservation.seat_type_name,
+    );
+    setSeatTypeId(seat?.id ?? '');
+    const q: Record<string, number> = {};
+    for (const line of reservation.order_items) {
+      const m = menuItems.find(
+        (mi) => mi.category !== 'seat' && mi.name === line.name,
+      );
+      if (m) q[m.id] = (q[m.id] ?? 0) + line.qty;
     }
-  }, [seatItems, seatTypeId]);
+    setOrderQty(q);
+    prefilled.current = true;
+  }, [menuItems, reservation]);
 
+  // startOptions が確定して現在値が候補に無ければ近い時刻へ寄せる
+  useEffect(() => {
+    if (!startOptions.includes(startTime)) {
+      const below = startOptions.filter((t) => t <= startTime);
+      const fallback = below.length > 0 ? below[below.length - 1] : undefined;
+      setStartTime(fallback ?? startOptions[0] ?? reservation.start_time);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startOptions]);
+
+  const maxSets = Math.max(1, getMaxSetsInWindow(startTime, winEnd));
   const effectiveSets = Math.min(sets, maxSets);
   const endTime = startTime + effectiveSets * SET_DURATION;
-  const available = countAvailableSeats(
-    startTime,
-    endTime,
-    reservations,
-    seatCount,
-  );
+  const available = countAvailableSeats(startTime, endTime, others, seatCount);
 
   const selectedSeat = seatItems.find((m) => m.id === seatTypeId);
   const seatUnitPrice = selectedSeat?.price ?? 0;
@@ -145,64 +164,172 @@ export function ReservationModal({
   const qualifying = countQualifyingOrders(orderLines);
   const shortfall = menuUndecided ? 0 : effectiveSets - qualifying;
 
-  const pinValid = pin === '' || /^[0-9]{4}$/.test(pin);
-
   function setQty(id: string, q: number) {
     setOrderQty((prev) => ({ ...prev, [id]: Math.max(0, q) }));
   }
 
-  async function handleSubmit() {
-    if (!name.trim()) {
-      setError('お名前を入力してください');
+  async function handleVerify() {
+    if (!/^[0-9]{4}$/.test(pinInput)) {
+      setPinError('暗証番号は4桁の数字で入力してください');
       return;
     }
-    if (!pinValid) {
-      setError('暗証番号は4桁の数字で入力してください');
+    setVerifying(true);
+    setPinError(null);
+    const { data, error: rpcError } = await supabase.rpc(
+      'verify_reservation_pin',
+      { p_reservation_id: reservation.id, p_pin: pinInput },
+    );
+    setVerifying(false);
+    if (rpcError) {
+      setPinError('確認に失敗しました。もう一度お試しください。');
       return;
     }
+    const res = data as VerifyPinResult;
+    if (res.ok) {
+      setVerifiedPin(pinInput);
+      setPhase('edit');
+    } else if (res.reason === 'no_pin') {
+      setPhase('no_pin');
+    } else {
+      setPinError('暗証番号が一致しません。');
+    }
+  }
+
+  async function handleSave() {
     setSubmitting(true);
     setError(null);
-
     const ordersPayload = menuUndecided
       ? []
       : Object.entries(orderQty)
           .filter(([, q]) => q > 0)
           .map(([item_id, qty]) => ({ item_id, qty }));
 
-    const { data, error: rpcError } = await supabase.rpc('make_reservation', {
-      p_date: date,
+    const { data, error: rpcError } = await supabase.rpc('update_reservation', {
+      p_reservation_id: reservation.id,
+      p_pin: verifiedPin,
       p_start_time: startTime,
       p_sets: effectiveSets,
-      p_customer_name: name.trim(),
       p_seat_type_id: seatTypeId || null,
       p_orders: ordersPayload,
       p_menu_undecided: menuUndecided,
-      p_edit_pin: pin === '' ? null : pin,
     });
 
     if (rpcError) {
-      setError('予約に失敗しました。もう一度お試しください。');
+      setError('変更に失敗しました。もう一度お試しください。');
       setSubmitting(false);
       return;
     }
-
-    const result = data as MakeReservationResult;
+    const result = data as EditReservationResult;
     if (result.error) {
-      setError(ERROR_MESSAGES[result.error] ?? '予約に失敗しました。');
+      setError(EDIT_ERROR_MESSAGES[result.error] ?? '変更に失敗しました。');
       setSubmitting(false);
       return;
     }
-
-    onReserved();
+    onUpdated();
   }
 
+  async function handleCancelReservation() {
+    if (!window.confirm('この予約を取り消します。よろしいですか？')) return;
+    setSubmitting(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('cancel_reservation', {
+      p_reservation_id: reservation.id,
+      p_pin: verifiedPin,
+    });
+    if (rpcError) {
+      setError('キャンセルに失敗しました。もう一度お試しください。');
+      setSubmitting(false);
+      return;
+    }
+    const result = data as EditReservationResult;
+    if (result.error) {
+      setError(EDIT_ERROR_MESSAGES[result.error] ?? 'キャンセルに失敗しました。');
+      setSubmitting(false);
+      return;
+    }
+    onUpdated();
+  }
+
+  // ---- フェーズ1: 暗証番号の確認 ----
+  if (phase === 'pin') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h3>予約の確認・変更</h3>
+          <p className="edit-pin-lead">
+            {minutesToDisplay(reservation.start_time)}〜
+            {minutesToDisplay(
+              reservation.start_time + reservation.sets * SET_DURATION,
+            )}
+            の予約です。変更・キャンセルには予約時に設定した暗証番号（4桁）が必要です。
+          </p>
+          <label>
+            暗証番号
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              value={pinInput}
+              autoFocus
+              onChange={(e) =>
+                setPinInput(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))
+              }
+              placeholder="例）1234"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleVerify();
+              }}
+            />
+          </label>
+          {pinError && <p className="error">{pinError}</p>}
+          <div className="modal-actions">
+            <button className="btn-cancel" onClick={onClose} disabled={verifying}>
+              閉じる
+            </button>
+            <button
+              className="btn-confirm"
+              onClick={() => void handleVerify()}
+              disabled={pinInput.length !== 4 || verifying}
+            >
+              {verifying ? '確認中…' : '確認'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- 暗証番号が未設定の予約 ----
+  if (phase === 'no_pin') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h3>予約の変更</h3>
+          <p className="edit-pin-lead">
+            この予約には暗証番号が設定されていないため、ここからは変更・キャンセルが
+            できません。お手数ですが、店舗までお問い合わせください。
+          </p>
+          <div className="modal-actions">
+            <button className="btn-confirm" onClick={onClose}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- フェーズ2: フル編集 ----
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content modal-content--wide"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>予約</h3>
+        <h3>予約の変更</h3>
+        <p className="edit-pin-lead">
+          {reservation.customer_name} 様の予約内容を変更できます。
+        </p>
 
         <label>
           開始時刻
@@ -255,51 +382,22 @@ export function ReservationModal({
           </label>
         )}
 
-        <label>
-          お名前
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="お名前"
-          />
-        </label>
-
-        <label>
-          暗証番号（4桁・任意）
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={4}
-            value={pin}
-            onChange={(e) =>
-              setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))
-            }
-            placeholder="例）1234"
-          />
-          <span className="field-note">
-            ※あとで予約のキャンセル・メニュー変更をする際に使います。
-          </span>
-        </label>
-
-        {/* 当日にメニューを決める（#4）— メニュー欄の上 */}
+        {/* 当日にメニューを決める */}
         <label className="checkbox-row">
           <input
             type="checkbox"
             checked={menuUndecided}
             onChange={(e) => setMenuUndecided(e.target.checked)}
           />
-          <span>当日にメニューを決める（注文予定を選ばずに予約）</span>
+          <span>当日にメニューを決める（注文予定を選ばずに変更）</span>
         </label>
 
-        {/* 追加オーダー */}
+        {/* ご注文予定 */}
         <div className="order-section">
           <div className="order-section-title">ご注文予定（任意）</div>
           <p className="order-section-note">
-            予約時に注文の予定を選んでおくと、会計の目安がわかります。これは確定注文
-            ではなく「予定」なので、予約後に変更でき、当日この通りに注文しなくても大丈
-            夫です。選択しなくても予約できます。
+            予定の変更です。確定注文ではないので、当日この通りに注文しなくても大丈夫
+            です。
           </p>
           {menuUndecided ? (
             <p className="order-undecided-note">
@@ -400,21 +498,30 @@ export function ReservationModal({
         )}
         {error && <p className="error">{error}</p>}
 
-        <div className="modal-actions">
+        <div className="modal-actions modal-actions--edit">
           <button
-            className="btn-cancel"
-            onClick={onClose}
+            className="btn-danger"
+            onClick={() => void handleCancelReservation()}
             disabled={submitting}
           >
-            キャンセル
+            予約を取り消す
           </button>
-          <button
-            className="btn-confirm"
-            onClick={handleSubmit}
-            disabled={submitting || !name.trim() || !pinValid || available <= 0}
-          >
-            {submitting ? '予約中…' : '予約する'}
-          </button>
+          <div className="modal-actions-right">
+            <button
+              className="btn-cancel"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              閉じる
+            </button>
+            <button
+              className="btn-confirm"
+              onClick={() => void handleSave()}
+              disabled={submitting || available <= 0}
+            >
+              {submitting ? '保存中…' : '変更を保存'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

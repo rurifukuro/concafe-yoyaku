@@ -61,25 +61,28 @@ export function TimeAllocationSummary({
 
   const activeRows = rows.filter((r) => r.presentSeats.size > 0);
 
-  /** 帯×席の配分％（在席なしは null）。注文0帯は均等割。 */
-  function ratioCell(
+  /** 帯×席へ割く接客時間（分・在席なしは null）。注文0帯は在席者で均等割。各帯は60分。 */
+  function allocCell(
     row: BandRow,
     seat: number,
   ): { text: string; equal: boolean } | null {
     if (!row.presentSeats.has(seat)) return null;
     if (row.total <= 0) {
-      const p = Math.round(100 / row.presentSeats.size);
-      return { text: `${String(p)}%`, equal: true };
+      const m = Math.round(BAND_MINUTES / row.presentSeats.size);
+      return { text: `${String(m)}分`, equal: true };
     }
     const v = row.perSeat.get(seat) ?? 0;
-    return { text: `${String(Math.round((v / row.total) * 100))}%`, equal: false };
+    return {
+      text: `${String(Math.round((v / row.total) * BAND_MINUTES))}分`,
+      equal: false,
+    };
   }
 
   return (
     <div className="time-alloc">
       <h3>時間帯別 接客時間配分の目安</h3>
       <p className="time-alloc-note">
-        注文額（席料を除いた小計）を在席の被り時間で按分した比率です。注文が無い時間帯は在席者で均等割。
+        注文額（席料を除いた小計）を在席の被り時間で按分し、1時間（60分）あたりに各席へ割く接客時間の目安（分）にしたものです。注文が無い時間帯は在席者で均等割。
       </p>
       {activeRows.length === 0 ? (
         <p className="sales-empty">この日の予約はまだありません。</p>
@@ -102,7 +105,7 @@ export function TimeAllocationSummary({
                   {minutesToDisplay(row.start)}〜{minutesToDisplay(row.end)}
                 </td>
                 {seats.map((s) => {
-                  const c = ratioCell(row, s);
+                  const c = allocCell(row, s);
                   return (
                     <td key={s} className="sales-num">
                       {c ? (
