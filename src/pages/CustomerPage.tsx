@@ -99,8 +99,14 @@ export function CustomerPage() {
         reservations={reservations}
         unlockWindows={windows}
         seatCount={effectiveSeatCount}
-        onPickSlot={setSelectedSlot}
-        onPickReservation={setEditTarget}
+        onPickSlot={(slot) => {
+          setEditTarget(null);
+          setSelectedSlot(slot);
+        }}
+        onPickReservation={(r) => {
+          setSelectedSlot(null);
+          setEditTarget(r);
+        }}
       />
 
       {selectedSlot !== null && (

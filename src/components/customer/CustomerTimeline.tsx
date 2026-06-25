@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, SyntheticEvent } from 'react';
 import type { Reservation, UnlockWindow } from '../../lib/types';
 import { minutesToDisplay } from '../../lib/timeUtils';
 import {
@@ -91,49 +91,57 @@ export function CustomerTimeline({
           </div>
         ))}
 
-        {/* 席レーン + 予約済みブロック(名前は非表示) */}
-        {Array.from({ length: seatCount }, (_, seatIdx) => {
-          const seatNo = seatIdx + 1;
-          const seatReservations = reservations.filter(
-            (r) => r.seat_no === seatNo,
-          );
+        {/* 席レーン背景（クリック透過のみ、子要素なし） */}
+        {Array.from({ length: seatCount }, (_, seatIdx) => (
+          <div
+            key={seatIdx}
+            className="ledger-lane ledger-lane--readonly"
+            style={{
+              left: `${(seatIdx / seatCount) * 100}%`,
+              width: `${100 / seatCount}%`,
+            }}
+          />
+        ))}
+
+        {/* 予約済みブロック（lane の外に独立配置＝iOS タッチ確実） */}
+        {reservations.map((r) => {
+          const seatIdx = r.seat_no - 1;
+          const top = r.start_time * PX_PER_MINUTE;
+          const height = r.sets * SET_DURATION * PX_PER_MINUTE;
+          const rEnd = r.start_time + r.sets * SET_DURATION;
+          function stop(e: SyntheticEvent) {
+            e.stopPropagation();
+          }
           return (
             <div
-              key={seatNo}
-              className="ledger-lane ledger-lane--readonly"
+              key={r.id}
+              className="ledger-block ledger-block--reserved ledger-block--clickable"
               style={{
+                top,
+                height,
                 left: `${(seatIdx / seatCount) * 100}%`,
                 width: `${100 / seatCount}%`,
               }}
+              title={`予約 ${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)}（タップで変更・キャンセル）`}
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                stop(e);
+                onPickReservation(r);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  stop(e);
+                  onPickReservation(r);
+                }
+              }}
             >
-              {seatReservations.map((r) => {
-                const top = r.start_time * PX_PER_MINUTE;
-                const height = r.sets * SET_DURATION * PX_PER_MINUTE;
-                const rEnd = r.start_time + r.sets * SET_DURATION;
-                return (
-                  <div
-                    key={r.id}
-                    className="ledger-block ledger-block--reserved ledger-block--clickable"
-                    style={{ top, height }}
-                    title={`予約 ${minutesToDisplay(r.start_time)}〜${minutesToDisplay(rEnd)}（タップで変更・キャンセル）`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onPickReservation(r)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onPickReservation(r);
-                      }
-                    }}
-                  >
-                    <div className="ledger-block-name">予約済</div>
-                    <div className="ledger-block-time">
-                      {minutesToDisplay(r.start_time)}〜{minutesToDisplay(rEnd)}
-                    </div>
-                    <div className="ledger-block-edit-hint">変更</div>
-                  </div>
-                );
-              })}
+              <div className="ledger-block-name">予約済</div>
+              <div className="ledger-block-time">
+                {minutesToDisplay(r.start_time)}〜{minutesToDisplay(rEnd)}
+              </div>
+              <div className="ledger-block-edit-hint">変更</div>
             </div>
           );
         })}
