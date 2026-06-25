@@ -92,12 +92,12 @@ function AdminDashboard() {
         onDeleteReservation={handleDeleteReservation}
       />
 
-      <SalesSummary reservations={reservations} />
-
       <TimeAllocationSummary
         reservations={reservations}
         seatCount={effectiveSeatCount}
       />
+
+      <SalesSummary reservations={reservations} />
 
       <details className="menu-manager-details">
         <summary>メニュー管理（会計目安に使う品目・価格を編集）</summary>

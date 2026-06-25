@@ -63,8 +63,12 @@ export function CustomerPage() {
       ? Math.max(...windows.map((w) => w.seat_count ?? seatCount))
       : seatCount;
 
+  const bgStyle = {
+    backgroundImage: `url(${import.meta.env.BASE_URL}bg.jpg)`,
+  } as const;
+
   return (
-    <div className="customer-page">
+    <div className="customer-page" style={bgStyle}>
       <h1 className="app-title">予約</h1>
 
       <Calendar selectedDate={selectedDate} onSelectDate={handlePickDate} />

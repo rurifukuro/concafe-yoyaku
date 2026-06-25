@@ -49,6 +49,30 @@ select {
   font: inherit;
 }
 
+/* ===== Customer Page Background ===== */
+
+.customer-page {
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+.customer-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.85);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.customer-page > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ===== App Layout ===== */
 
 .app {
@@ -957,6 +981,28 @@ select {
 .unlock-seat-input input,
 .unlock-list-seat input {
   width: 3rem;
+}
+
+.seat-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.seat-step-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: white;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.seat-step-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .unlock-list li {
   display: flex;

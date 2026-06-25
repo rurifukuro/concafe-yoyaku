@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import type { UnlockWindow } from '../../lib/types';
 import { minutesToDisplay } from '../../lib/timeUtils';
 import { BUSINESS_DURATION_MINUTES, TIME_STEP } from '../../lib/constants';
@@ -35,13 +35,25 @@ export function UnlockManager({
 }: UnlockManagerProps) {
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(BUSINESS_DURATION_MINUTES);
-  const [seatCount, setSeatCount] = useState(defaultSeatCount);
+  const [seatInput, setSeatInput] = useState(String(defaultSeatCount));
   const [adding, setAdding] = useState(false);
 
+  const parsedSeat = Number(seatInput);
+  const seatValid = seatInput !== '' && parsedSeat >= 1;
+
+  function changeSeat(delta: number) {
+    const cur = seatValid ? parsedSeat : defaultSeatCount;
+    setSeatInput(String(Math.max(1, cur + delta)));
+  }
+
+  function handleSeatChange(e: ChangeEvent<HTMLInputElement>) {
+    setSeatInput(e.target.value);
+  }
+
   async function handleAdd() {
-    if (startTime >= endTime) return;
+    if (startTime >= endTime || !seatValid) return;
     setAdding(true);
-    await onAdd(startTime, endTime, seatCount);
+    await onAdd(startTime, endTime, parsedSeat);
     setAdding(false);
   }
 
@@ -74,16 +86,19 @@ export function UnlockManager({
         </select>
         <label className="unlock-seat-input">
           席数
-          <input
-            type="number"
-            min={1}
-            value={seatCount}
-            onChange={(e) =>
-              setSeatCount(Math.max(1, Number(e.target.value) || 1))
-            }
-          />
+          <span className="seat-stepper">
+            <button type="button" className="seat-step-btn" onClick={() => changeSeat(-1)} disabled={parsedSeat <= 1}>−</button>
+            <input
+              type="number"
+              min={1}
+              value={seatInput}
+              onChange={handleSeatChange}
+              onBlur={() => { if (!seatValid) setSeatInput(String(defaultSeatCount)); }}
+            />
+            <button type="button" className="seat-step-btn" onClick={() => changeSeat(1)}>＋</button>
+          </span>
         </label>
-        <button onClick={handleAdd} disabled={adding || startTime >= endTime}>
+        <button onClick={handleAdd} disabled={adding || startTime >= endTime || !seatValid}>
           {adding ? '追加中…' : '解禁'}
         </button>
       </div>
@@ -98,17 +113,20 @@ export function UnlockManager({
               </span>
               <label className="unlock-list-seat">
                 席数
-                <input
-                  type="number"
-                  min={1}
-                  value={w.seat_count ?? defaultSeatCount}
-                  onChange={(e) =>
-                    void onUpdateSeatCount(
-                      w.id,
-                      Math.max(1, Number(e.target.value) || 1),
-                    )
-                  }
-                />
+                <span className="seat-stepper">
+                  <button type="button" className="seat-step-btn" onClick={() => void onUpdateSeatCount(w.id, Math.max(1, (w.seat_count ?? defaultSeatCount) - 1))} disabled={(w.seat_count ?? defaultSeatCount) <= 1}>−</button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={w.seat_count ?? defaultSeatCount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '') return;
+                      void onUpdateSeatCount(w.id, Math.max(1, Number(v) || 1));
+                    }}
+                  />
+                  <button type="button" className="seat-step-btn" onClick={() => void onUpdateSeatCount(w.id, (w.seat_count ?? defaultSeatCount) + 1)}>＋</button>
+                </span>
               </label>
               <button className="btn-delete" onClick={() => onRemove(w.id)}>
                 ✕
