@@ -97,6 +97,7 @@ export function ReservationEditModal({
 
   const [startTime, setStartTime] = useState(reservation.start_time);
   const [sets, setSets] = useState(reservation.sets);
+  const [note, setNote] = useState(reservation.note ?? '');
   const [menuUndecided, setMenuUndecided] = useState(reservation.menu_undecided);
   const [seatTypeId, setSeatTypeId] = useState('');
   const [orderQty, setOrderQty] = useState<Record<string, number>>({});
@@ -212,6 +213,7 @@ export function ReservationEditModal({
       p_seat_type_id: seatTypeId || null,
       p_orders: ordersPayload,
       p_menu_undecided: menuUndecided,
+      p_note: note.trim() === '' ? null : note.trim(),
     });
 
     if (rpcError) {
@@ -390,6 +392,18 @@ export function ReservationEditModal({
             onChange={(e) => setMenuUndecided(e.target.checked)}
           />
           <span>当日にメニューを決める（注文予定を選ばずに変更）</span>
+        </label>
+
+        <label>
+          備考（任意）
+          <textarea
+            className="note-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="アレルギー・記念日・お席のご希望など、ご自由にどうぞ"
+          />
         </label>
 
         {/* ご注文予定 */}

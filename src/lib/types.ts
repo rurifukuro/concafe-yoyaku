@@ -62,6 +62,10 @@ export interface Reservation {
   subtotal: number;
   /** 「当日にメニューを決める」で予約された場合 true */
   menu_undecided: boolean;
+  /** 予約者が入力する備考（任意）。未入力は null */
+  note: string | null;
+  /** 管理者がつける「提供済み」フラグ。order_items と同じ並び順の boolean 配列 */
+  served_items: boolean[];
   created_at: string;
 }
 

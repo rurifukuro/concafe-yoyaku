@@ -96,6 +96,7 @@ export function ReservationModal({
   const [sets, setSets] = useState(1);
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
+  const [note, setNote] = useState('');
   const [menuUndecided, setMenuUndecided] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +179,7 @@ export function ReservationModal({
       p_orders: ordersPayload,
       p_menu_undecided: menuUndecided,
       p_edit_pin: pin === '' ? null : pin,
+      p_note: note.trim() === '' ? null : note.trim(),
     });
 
     if (rpcError) {
@@ -281,6 +283,18 @@ export function ReservationModal({
           <span className="field-note">
             ※あとで予約のキャンセル・メニュー変更をする際に使います。
           </span>
+        </label>
+
+        <label>
+          備考（任意）
+          <textarea
+            className="note-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="アレルギー・記念日・お席のご希望など、ご自由にどうぞ"
+          />
         </label>
 
         {/* 当日にメニューを決める（#4）— メニュー欄の上 */}

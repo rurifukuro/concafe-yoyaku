@@ -6,7 +6,6 @@ import { SalesSummary } from '../components/admin/SalesSummary';
 import { TimeAllocationSummary } from '../components/admin/TimeAllocationSummary';
 import { MenuManager } from '../components/admin/MenuManager';
 import { UnlockManager } from '../components/admin/UnlockManager';
-import { SeatCountSetting } from '../components/admin/SeatCountSetting';
 import { useReservations } from '../hooks/useReservations';
 import { useUnlockWindows, useNextOpenDate } from '../hooks/useUnlockWindows';
 import { useSettings } from '../hooks/useSettings';
@@ -22,7 +21,7 @@ function AdminDashboard() {
   const { reservations, refresh: refreshReservations } = useReservations(date);
   const { windows, addWindow, removeWindow, updateWindowSeatCount } =
     useUnlockWindows(date);
-  const { seatCount, updateSeatCount } = useSettings();
+  const { seatCount } = useSettings();
   const { nextDate } = useNextOpenDate();
 
   // 初期表示は最新の予約解禁日へ寄せる。解禁日が無ければ今日のまま（既存仕様）。
@@ -75,7 +74,6 @@ function AdminDashboard() {
           <button onClick={() => changeDate(1)}>翌日 ▶</button>
         </div>
 
-        <SeatCountSetting current={seatCount} onUpdate={updateSeatCount} />
         <UnlockManager
           windows={windows}
           defaultSeatCount={seatCount}
@@ -90,6 +88,7 @@ function AdminDashboard() {
         unlockWindows={windows}
         seatCount={effectiveSeatCount}
         onDeleteReservation={handleDeleteReservation}
+        onRefresh={refreshReservations}
       />
 
       <TimeAllocationSummary
